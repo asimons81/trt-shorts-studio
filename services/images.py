@@ -1,8 +1,9 @@
+import io
 from typing import List
 from PIL import Image, ImageDraw
 
 
-def generate_preview_images(prompts: List[str]) -> List[Image.Image]:
+def generate_preview_images(prompts: List[str]) -> List[bytes]:
     """
     Given a small list of visual prompts, generate simple placeholder images
     that display the prompt text. This avoids needing any external image API
@@ -10,7 +11,7 @@ def generate_preview_images(prompts: List[str]) -> List[Image.Image]:
 
     Each image is 1080x1920 with a dark background and white text.
     """
-    images: List[Image.Image] = []
+    images: List[bytes] = []
 
     for prompt in prompts:
         # Create a blank dark image
@@ -42,6 +43,11 @@ def generate_preview_images(prompts: List[str]) -> List[Image.Image]:
         # Draw the prompt text in white
         draw.multiline_text((x, y), text, fill=(255, 255, 255), align="center")
 
-        images.append(img)
+        # Convert to a PNG byte payload so Streamlit can reliably render
+        # and store the previews in session state without serialization
+        # issues.
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        images.append(buffer.getvalue())
 
     return images
