@@ -1,58 +1,47 @@
-"""Preview image generation (placeholder by default)."""
-from __future__ import annotations
-
 from typing import List
-
-from PIL import Image, ImageDraw, ImageFont
-
-
-CANVAS_SIZE = (1080, 1920)
-BACKGROUND = (24, 24, 24)
-TEXT_COLOR = (240, 240, 240)
-
-
-def _draw_centered_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, canvas_size):
-    width, height = canvas_size
-    text = "\n".join(_wrap_text(text, 28))
-    text_bbox = draw.multiline_textbbox((0, 0), text, font=font, align="center")
-    text_width = text_bbox[2] - text_bbox[0]
-    text_height = text_bbox[3] - text_bbox[1]
-    position = ((width - text_width) // 2, (height - text_height) // 2)
-    draw.multiline_text(position, text, font=font, fill=TEXT_COLOR, align="center", spacing=6)
-
-
-def _wrap_text(text: str, max_width: int) -> List[str]:
-    words = text.split()
-    lines: List[str] = []
-    current: List[str] = []
-    for word in words:
-        if len(" ".join(current + [word])) <= max_width:
-            current.append(word)
-        else:
-            lines.append(" ".join(current))
-            current = [word]
-    if current:
-        lines.append(" ".join(current))
-    return lines or [text]
+from PIL import Image, ImageDraw
 
 
 def generate_preview_images(prompts: List[str]) -> List[Image.Image]:
     """
-    Generate placeholder images for the supplied prompts.
+    Given a small list of visual prompts, generate simple placeholder images
+    that display the prompt text. This avoids needing any external image API
+    and lets the Streamlit app show something in the Visuals tab.
+
+    Each image is 1080x1920 with a dark background and white text.
     """
     images: List[Image.Image] = []
-    if not prompts:
-        return images
-
-    try:
-        font = ImageFont.load_default()
-    except Exception:  # pragma: no cover - fallback
-        font = ImageFont.load_default()
 
     for prompt in prompts:
-        img = Image.new("RGB", CANVAS_SIZE, BACKGROUND)
+        # Create a blank dark image
+        img = Image.new("RGB", (1080, 1920), color=(20, 24, 28))
         draw = ImageDraw.Draw(img)
-        _draw_centered_text(draw, prompt, font, CANVAS_SIZE)
+
+        # Truncate text so it fits reasonably
+        text = prompt.strip()
+        if len(text) > 160:
+            text = text[:157] + "..."
+
+        # Compute simple centered position
+        try:
+            # Pillow >= 8.0 has multiline_textbbox
+            bbox = draw.multiline_textbbox((0, 0), text, align="center")
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+        except AttributeError:
+            # Fallback: approximate sizing by splitting lines
+            lines = text.split("\n")
+            # Rough approximation: 20px per character wide, 30px per line high
+            max_len = max(len(line) for line in lines) if lines else 0
+            text_width = max_len * 20
+            text_height = len(lines) * 30
+
+        x = (img.width - text_width) // 2
+        y = (img.height - text_height) // 2
+
+        # Draw the prompt text in white
+        draw.multiline_text((x, y), text, fill=(255, 255, 255), align="center")
+
         images.append(img)
 
     return images
